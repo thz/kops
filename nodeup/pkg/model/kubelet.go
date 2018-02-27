@@ -189,6 +189,18 @@ func (b *KubeletBuilder) buildSystemdService() *nodetasks.Service {
 		manifest.Set("Service", "Environment", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/kubernetes/bin")
 	}
 
+	// Explicit node-ip for multi-ENI AWS situation:
+	// (We observed the private v4 address of an additional
+	// ENI to appear as node IP. So as a mitigation we
+	// fetch the primary v4 address from meta-data and
+	// explicitly specify it as --node-ip.)
+	if v, err := vfs.Context.ReadFile("metadata://aws/meta-data/local-ipv4"); err != nil {
+		glog.Warningf("Local ipv4 address from AWS metadata service was unavailable.")
+	} else {
+		glog.V(8).Infof("Using local ipv4 address as node IP: %s", string(v))
+		kubeletCommand = kubeletCommand + " --node-ip " + string(v)
+	}
+
 	manifest.Set("Service", "EnvironmentFile", "/etc/sysconfig/kubelet")
 	manifest.Set("Service", "ExecStart", kubeletCommand+" \"$DAEMON_ARGS\"")
 	manifest.Set("Service", "Restart", "always")
